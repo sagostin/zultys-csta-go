@@ -137,6 +137,38 @@ func (c *ChatClient) setupEventHandlers() {
 	)
 }
 
+func (c *ChatClient) LoginZAC(config Config) error {
+	dialer := websocket.Dialer{
+		HandshakeTimeout: 10 * time.Second,
+	}
+
+	conn, _, err := dialer.Dial(fmt.Sprintf("wss://%s:7779", config.ServerAddress), nil)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %v", err)
+	}
+
+	c.mu.Lock()
+	c.conn = conn
+	c.chatState = "connecting"
+	c.mu.Unlock()
+
+	if c.OnStateChange != nil {
+		c.OnStateChange("connecting")
+	}
+
+	// Start session
+	loginPacket := c.toolkit.CreateLogin("200", "P@ssw0rd", "1.2.3", false, false)
+	err = c.sendWebSocketMessage(loginPacket)
+	if err != nil {
+		return err
+	}
+
+	// Start message reader
+	go c.readMessages()
+
+	return nil
+}
+
 func (c *ChatClient) Connect(config Config) error {
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
